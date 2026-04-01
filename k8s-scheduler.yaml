@@ -1,4 +1,4 @@
-﻿apiVersion: apps/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ai-pod-scheduler
@@ -20,6 +20,11 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 8000
+          env:
+            - name: MODEL_PATH
+              value: "model.pkl"
+            - name: APP_PORT
+              value: "8000"
           resources:
             requests:
               memory: "256Mi"
@@ -39,4 +44,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8000
-  type: NodePort
+  type: LoadBalancer

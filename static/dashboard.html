@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI K8s Pod Scheduler — Intelligent Node Predictor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* ===== CSS RESET & VARIABLES ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --glass: rgba(255, 255, 255, 0.04);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --accent-cyan: #06d6a0;
+            --accent-blue: #4361ee;
+            --accent-purple: #7209b7;
+            --accent-pink: #f72585;
+            --accent-orange: #fb8500;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== ANIMATED BACKGROUND ===== */
+        .bg-animation {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 0;
+            overflow: hidden;
+        }
+        .bg-animation .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.15;
+            animation: float 20s infinite ease-in-out;
+        }
+        .bg-animation .orb:nth-child(1) {
+            width: 600px; height: 600px;
+            background: var(--accent-blue);
+            top: -10%; left: -5%;
+            animation-duration: 25s;
+        }
+        .bg-animation .orb:nth-child(2) {
+            width: 500px; height: 500px;
+            background: var(--accent-purple);
+            top: 40%; right: -10%;
+            animation-duration: 30s;
+            animation-delay: -5s;
+        }
+        .bg-animation .orb:nth-child(3) {
+            width: 400px; height: 400px;
+            background: var(--accent-cyan);
+            bottom: -5%; left: 30%;
+            animation-duration: 22s;
+            animation-delay: -10s;
+        }
+        .bg-animation .orb:nth-child(4) {
+            width: 350px; height: 350px;
+            background: var(--accent-pink);
+            top: 20%; left: 50%;
+            animation-duration: 28s;
+            animation-delay: -15s;
+        }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -80px) scale(1.1); }
+            50% { transform: translate(-30px, 60px) scale(0.9); }
+            75% { transform: translate(70px, 30px) scale(1.05); }
+        }
+
+        /* ===== GRID OVERLAY ===== */
+        .grid-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        /* ===== NAVIGATION BAR ===== */
+        .navbar {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(10, 14, 26, 0.8);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--glass-border);
+            animation: fadeInDown 0.8s ease;
+        }
+        .nav-brand {
+            font-weight: 800;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        .nav-brand .pulse-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            animation: pulse 2s infinite;
+        }
+        .nav-links {
+            display: flex;
+            gap: 10px;
+        }
+        .nav-link {
+            padding: 10px 18px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid transparent;
+        }
+        .nav-link:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.05);
+        }
+        .nav-link.active {
+            color: #fff;
+            background: linear-gradient(135deg, rgba(67,97,238,0.2), rgba(114,9,183,0.2));
+            border: 1px solid rgba(67,97,238,0.4);
+            box-shadow: 0 4px 15px rgba(67,97,238,0.15);
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 40px 30px 60px;
+        }
+
+        /* ===== PAGE CONTAINER ===== */
+        .page {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #fff 0%, var(--accent-cyan) 50%, var(--accent-blue) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+
+        /* ===== STATS BAR ===== */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px 22px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .stat-card .stat-icon {
+            width: 42px; height: 42px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+        .stat-card:nth-child(1) .stat-icon { background: rgba(6,214,160,0.15); }
+        .stat-card:nth-child(2) .stat-icon { background: rgba(67,97,238,0.15); }
+        .stat-card:nth-child(3) .stat-icon { background: rgba(247,37,133,0.15); }
+        .stat-card:nth-child(4) .stat-icon { background: rgba(251,133,0,0.15); }
+        .stat-card .stat-value {
+            font-size: 1.9rem;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 2px;
+        }
+        .stat-card:nth-child(1) .stat-value { color: var(--accent-cyan); }
+        .stat-card:nth-child(2) .stat-value { color: var(--accent-blue); }
+        .stat-card:nth-child(3) .stat-value { color: var(--accent-pink); }
+        .stat-card:nth-child(4) .stat-value { color: var(--accent-orange); }
+        .stat-card .stat-label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .stat-card .stat-bar {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 3px;
+            border-radius: 0 0 16px 16px;
+        }
+        .stat-card:nth-child(1) .stat-bar { background: linear-gradient(90deg, transparent, var(--accent-cyan)); }
+        .stat-card:nth-child(2) .stat-bar { background: linear-gradient(90deg, transparent, var(--accent-blue)); }
+        .stat-card:nth-child(3) .stat-bar { background: linear-gradient(90deg, transparent, var(--accent-pink)); }
+        .stat-card:nth-child(4) .stat-bar { background: linear-gradient(90deg, transparent, var(--accent-orange)); }
+
+        /* ===== MAIN GRID ===== */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        /* ===== GLASS CARD ===== */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-subtitle {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 22px;
+        }
+
+        /* ===== INPUT FORM ===== */
+        .input-group {
+            margin-bottom: 18px;
+        }
+        .input-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .input-group label .label-value {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-cyan);
+            font-size: 0.85rem;
+        }
+        .input-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.06);
+            outline: none;
+            margin-bottom: 6px;
+        }
+        .input-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(6,214,160,0.4);
+            transition: transform 0.2s;
+        }
+        .input-group input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        .input-group input[type="number"] {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .input-group input[type="number"]:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(6,214,160,0.1);
+        }
+        .slider-row {
+            display: flex; gap: 12px; align-items: center;
+        }
+        .slider-row input[type="range"] { flex: 1; }
+        .slider-row input[type="number"] {
+            width: 90px; flex-shrink: 0;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.03);
+            color: var(--accent-cyan);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            text-align: center;
+            outline: none;
+        }
+        .slider-row input[type="number"]:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(6,214,160,0.1);
+        }
+
+        /* ===== PREDICT BUTTON ===== */
+        .predict-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            transition: transform 0.2s, box-shadow 0.3s;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+        }
+        .predict-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(67,97,238,0.4);
+        }
+        .predict-btn:active { transform: translateY(0); }
+        .predict-btn.loading {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        .predict-btn .btn-shimmer {
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            animation: shimmer 2.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 200%; }
+        }
+
+        /* ===== RESULT PANEL ===== */
+        .result-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .result-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .result-placeholder .placeholder-icon {
+            font-size: 3.5rem;
+            margin-bottom: 16px;
+            opacity: 0.3;
+            animation: floatIcon 3s ease-in-out infinite;
+        }
+        @keyframes floatIcon { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+        .result-placeholder p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .result-display { display: none; }
+        .result-display.active { display: block; animation: fadeInScale 0.5s ease; }
+
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+        .result-icon-wrapper {
+            width: 64px; height: 64px;
+            border-radius: 18px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+            position: relative;
+        }
+        .result-icon-wrapper.low {
+            background: rgba(34,197,94,0.12);
+            border: 1px solid rgba(34,197,94,0.25);
+        }
+        .result-icon-wrapper.high {
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.25);
+        }
+        .result-icon-wrapper .ring {
+            position: absolute;
+            inset: -4px;
+            border-radius: 22px;
+            border: 2px solid transparent;
+            animation: ring-rotate 3s linear infinite;
+        }
+        .result-icon-wrapper.low .ring { border-top-color: var(--success); border-right-color: var(--success); }
+        .result-icon-wrapper.high .ring { border-top-color: var(--danger); border-right-color: var(--danger); }
+        @keyframes ring-rotate { to { transform: rotate(360deg); } }
+
+        .result-status-text h3 {
+            font-size: 1.4rem;
+            font-weight: 800;
+        }
+        .result-status-text h3.low { color: var(--success); }
+        .result-status-text h3.high { color: var(--danger); }
+        .result-status-text p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .result-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .detail-chip {
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+        }
+        .detail-chip .chip-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 4px;
+        }
+        .detail-chip .chip-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        .schedule-recommendation {
+            padding: 16px 20px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .schedule-recommendation.yes {
+            background: rgba(34,197,94,0.08);
+            border: 1px solid rgba(34,197,94,0.2);
+            color: var(--success);
+        }
+        .schedule-recommendation.no {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.2);
+            color: var(--danger);
+        }
+        .schedule-recommendation .rec-icon {
+            font-size: 1.5rem;
+        }
+
+        /* ===== TECH STACK & ARCHITECTURE ===== */
+        .tech-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .tech-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: border-color 0.3s, transform 0.2s, background 0.3s;
+        }
+        .tech-chip:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(6,214,160,0.05);
+            transform: translateY(-2px);
+            color: var(--text-primary);
+        }
+        .tech-chip .tech-icon { font-size: 1.2rem; }
+
+        /* ===== ARCHITECTURE FLOW ===== */
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding: 20px 0;
+        }
+        .arch-node {
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-align: center;
+            border: 1px solid;
+            min-width: 100px;
+            transition: transform 0.3s;
+        }
+        .arch-node:hover { transform: scale(1.06); }
+        .arch-node.k8s { background: rgba(67,97,238,0.1); border-color: rgba(67,97,238,0.3); color: var(--accent-blue); }
+        .arch-node.data { background: rgba(6,214,160,0.1); border-color: rgba(6,214,160,0.3); color: var(--accent-cyan); }
+        .arch-node.ml { background: rgba(114,9,183,0.1); border-color: rgba(114,9,183,0.3); color: #a855f7; }
+        .arch-node.api { background: rgba(247,37,133,0.1); border-color: rgba(247,37,133,0.3); color: var(--accent-pink); }
+        .arch-node.ui { background: rgba(251,133,0,0.1); border-color: rgba(251,133,0,0.3); color: var(--accent-orange); }
+        .arch-arrow {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            animation: arrowPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes arrowPulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+        .arch-node-sub {
+            font-size: 0.65rem;
+            font-weight: 400;
+            opacity: 0.7;
+            display: block;
+            margin-top: 2px;
+        }
+
+        /* ===== MODEL PERF SECTION ===== */
+        .perf-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .perf-item {
+            text-align: center;
+            padding: 20px 10px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--glass-border);
+        }
+        .perf-item .perf-value {
+            font-size: 2.2rem;
+            font-weight: 900;
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .perf-item .perf-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-top: 6px;
+        }
+        .class-distribution {
+            display: flex;
+            gap: 16px;
+        }
+        .class-bar-wrapper {
+            flex: 1;
+            padding: 18px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--glass-border);
+        }
+        .class-bar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+        }
+        .class-bar-header .class-name { font-weight: 600; }
+        .class-bar-header .class-count {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        .class-bar-track {
+            height: 10px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            overflow: hidden;
+        }
+        .class-bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 1.5s cubic-bezier(0.4,0,0.2,1);
+            width: 0;
+        }
+        .class-bar-fill.low { background: linear-gradient(90deg, var(--success), var(--accent-cyan)); }
+        .class-bar-fill.high { background: linear-gradient(90deg, var(--danger), var(--accent-pink)); }
+
+        /* ===== FULL WIDTH BLOCKS ===== */
+        .api-block {
+            margin-bottom: 24px;
+            padding: 24px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .api-block .api-method {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            margin-right: 16px;
+        }
+        .api-block .api-method.get { background: rgba(6,214,160,0.15); color: var(--accent-cyan); }
+        .api-block .api-method.post { background: rgba(67,97,238,0.15); color: var(--accent-blue); }
+        
+        .api-block .api-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .api-block .api-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 6px;
+        }
+        .api-block .try-btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .api-block .try-btn:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            padding: 30px 0 20px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: auto;
+        }
+        .footer a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+
+        /* ===== SCROLL ANIMATIONS ===== */
+        @keyframes fadeInDown { from { opacity:0; transform:translateY(-30px); } to { opacity:1; transform:translateY(0); } }
+
+        /* ===== LOADING SPINNER ===== */
+        .spinner {
+            width: 22px; height: 22px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .main-grid { grid-template-columns: 1fr; }
+            .navbar { flex-direction: column; gap: 16px; padding: 20px; }
+            .header h1 { font-size: 2rem; }
+        }
+        @media (max-width: 500px) {
+            .stats-bar { grid-template-columns: 1fr; }
+            .result-details { grid-template-columns: 1fr; }
+            .perf-grid { grid-template-columns: 1fr; }
+            .class-distribution { flex-direction: column; }
+            .api-block { flex-direction: column; align-items: flex-start; gap: 16px; }
+        }
+
+        /* ===== HISTORY LOG ===== */
+        .history-section {
+            margin-top: 24px;
+        }
+        .history-table-wrapper {
+            overflow-x: auto;
+        }
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+        .history-table th {
+            text-align: left;
+            padding: 12px 14px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-size: 0.7rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .history-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .history-table tr { transition: background 0.2s; }
+        .history-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+        }
+        .status-badge.low-badge {
+            background: rgba(34,197,94,0.12);
+            color: var(--success);
+        }
+        .status-badge.high-badge {
+            background: rgba(239,68,68,0.12);
+            color: var(--danger);
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="bg-animation">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+    <div class="grid-overlay"></div>
+
+    <!-- ===== NAVIGATION BAR ===== -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="pulse-dot"></span>
+            AI Scheduler Panel
+        </div>
+        <div class="nav-links">
+            <a class="nav-link active" onclick="switchPage('page-predict', this)">🚀 Predict</a>
+            <a class="nav-link" onclick="switchPage('page-analytics', this)">📊 Analytics</a>
+            <a class="nav-link" onclick="switchPage('page-architecture', this)">🏗️ Architecture</a>
+            <a class="nav-link" onclick="switchPage('page-history', this)">📜 History</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <!-- HEADER (Shared across pages) -->
+        <header class="header">
+            <h1>Node Load Predictor</h1>
+            <p>Intelligent pod scheduling powered by XGBoost ML — trained on 1,053 real Kubernetes cluster metrics for optimal resource allocation</p>
+        </header>
+
+        <!-- ============================================== -->
+        <!-- PAGE 1: PREDICT (DASHBOARD)                    -->
+        <!-- ============================================== -->
+        <div id="page-predict" class="page active">
+            <!-- STATS BAR -->
+            <section class="stats-bar">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value" id="stat-samples">0</div>
+                    <div class="stat-label">Training Samples</div>
+                    <div class="stat-bar"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🎯</div>
+                    <div class="stat-value" id="stat-accuracy">0%</div>
+                    <div class="stat-label">Model Accuracy</div>
+                    <div class="stat-bar"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-value" id="stat-features">4</div>
+                    <div class="stat-label">Input Features</div>
+                    <div class="stat-bar"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🧠</div>
+                    <div class="stat-value">XGBoost</div>
+                    <div class="stat-label">ML Algorithm</div>
+                    <div class="stat-bar"></div>
+                </div>
+            </section>
+
+            <!-- MAIN PREDICTION GRID -->
+            <section class="main-grid">
+                <!-- INPUT PANEL -->
+                <div class="glass-card">
+                    <div class="card-title">⚙️ Node Metrics Input</div>
+                    <div class="card-subtitle">Enter Kubernetes node resource metrics to predict load status</div>
+
+                    <div class="input-group">
+                        <label>CPU Cores (millicores) <span class="label-value" id="lbl-cpu-cores">250</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="cpu-cores" min="100" max="2500" value="250" oninput="syncSlider(this, 'num-cpu-cores', 'lbl-cpu-cores')">
+                            <input type="number" id="num-cpu-cores" min="100" max="2500" value="250" oninput="syncNumber(this, 'cpu-cores', 'lbl-cpu-cores')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>CPU Percentage (%) <span class="label-value" id="lbl-cpu-pct">5</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="cpu-pct" min="0" max="100" value="5" oninput="syncSlider(this, 'num-cpu-pct', 'lbl-cpu-pct')">
+                            <input type="number" id="num-cpu-pct" min="0" max="100" value="5" oninput="syncNumber(this, 'cpu-pct', 'lbl-cpu-pct')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Memory (MB) <span class="label-value" id="lbl-mem-mb">620</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="mem-mb" min="100" max="2000" value="620" oninput="syncSlider(this, 'num-mem-mb', 'lbl-mem-mb')">
+                            <input type="number" id="num-mem-mb" min="100" max="2000" value="620" oninput="syncNumber(this, 'mem-mb', 'lbl-mem-mb')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Memory Percentage (%) <span class="label-value" id="lbl-mem-pct">5</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="mem-pct" min="0" max="100" value="5" oninput="syncSlider(this, 'num-mem-pct', 'lbl-mem-pct')">
+                            <input type="number" id="num-mem-pct" min="0" max="100" value="5" oninput="syncNumber(this, 'mem-pct', 'lbl-mem-pct')">
+                        </div>
+                    </div>
+
+                    <button class="predict-btn" id="predict-btn" onclick="runPrediction()">
+                        <span class="btn-shimmer"></span>
+                        <span id="btn-text">🚀 Analyze Node &amp; Predict Load</span>
+                    </button>
+                </div>
+
+                <!-- RESULT PANEL -->
+                <div class="glass-card result-panel">
+                    <div class="card-title">📡 Prediction Output</div>
+                    <div class="card-subtitle">Real-time node classification using trained XGBoost model</div>
+
+                    <div class="result-placeholder" id="result-placeholder">
+                        <div class="placeholder-icon">🛸</div>
+                        <p>Enter node metrics and click <strong>Analyze</strong> to get an AI-powered scheduling recommendation</p>
+                    </div>
+
+                    <div class="result-display" id="result-display">
+                        <div class="result-header">
+                            <div class="result-icon-wrapper" id="result-icon-wrap">
+                                <div class="ring"></div>
+                                <span id="result-emoji"></span>
+                            </div>
+                            <div class="result-status-text">
+                                <h3 id="result-title"></h3>
+                                <p id="result-subtitle"></p>
+                            </div>
+                        </div>
+
+                        <div class="result-details" id="result-details"></div>
+
+                        <div class="schedule-recommendation" id="schedule-rec">
+                            <span class="rec-icon" id="rec-icon"></span>
+                            <span id="rec-text"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+
+        <!-- ============================================== -->
+        <!-- PAGE 2: ANALYTICS                              -->
+        <!-- ============================================== -->
+        <div id="page-analytics" class="page">
+            <div class="glass-card" style="margin-bottom: 24px;">
+                <div class="card-title">📈 Model Performance Analysis</div>
+                <div class="card-subtitle">XGBoost classifier validation metrics on 20% holdout set, incorporating noisy edge-cases.</div>
+
+                <div class="perf-grid">
+                    <div class="perf-item">
+                        <div class="perf-value">99.05%</div>
+                        <div class="perf-label">Accuracy</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-value">0.99</div>
+                        <div class="perf-label">Precision</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-value">0.99</div>
+                        <div class="perf-label">F1-Score</div>
+                    </div>
+                </div>
+
+                <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;color:var(--text-secondary);">Dataset Class Distribution</div>
+                <div class="class-distribution">
+                    <div class="class-bar-wrapper">
+                        <div class="class-bar-header">
+                            <span class="class-name" style="color:var(--success);">✅ Low Load (0)</span>
+                            <span class="class-count">576 samples</span>
+                        </div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill low" id="bar-low"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-wrapper">
+                        <div class="class-bar-header">
+                            <span class="class-name" style="color:var(--danger);">❌ High Load (1)</span>
+                            <span class="class-count">477 samples</span>
+                        </div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill high" id="bar-high"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">🔍 Feature Importance</div>
+                <div class="card-subtitle">How the ML model weighs each metric</div>
+                
+                <div style="padding:20px; border-radius:12px; background:rgba(255,255,255,0.02); border:1px solid var(--glass-border);">
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-cyan);font-weight:600;">cpu_cores</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.8512</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="width:85%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Primary separator between load classes. Values > 1,800m heavily indicate HIGH LOAD.</div>
+                        </div>
+                        
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-blue);font-weight:600;">memory_mb</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0824</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-blue); width:8%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Secondary memory utilization signal. Helps resolve edge-case classifications.</div>
+                        </div>
+
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-purple);font-weight:600;">cpu_percent</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0431</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-purple); width:4%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Processor usage percentage relative to total capacity.</div>
+                        </div>
+
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-pink);font-weight:600;">memory_percent</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0233</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-pink); width:2%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Memory capacity percentage.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ============================================== -->
+        <!-- PAGE 3: ARCHITECTURE                           -->
+        <!-- ============================================== -->
+        <div id="page-architecture" class="page">
+            <div class="glass-card" style="margin-bottom: 24px;">
+                <div class="card-title">🏗️ System Architecture Flow</div>
+                <div class="card-subtitle">End-to-end data pipeline from Kubernetes cluster to ML prediction dashboard</div>
+                <div class="arch-flow">
+                    <div class="arch-node k8s">☸️ K8s Cluster<span class="arch-node-sub">kubectl top nodes</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node data">📊 Metrics CSV<span class="arch-node-sub">1,053 samples</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node ml">🧠 XGBoost<span class="arch-node-sub">MLflow tracked</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node api">⚡ FastAPI<span class="arch-node-sub">REST + Server</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node ui">🖥️ Dashboard<span class="arch-node-sub">Client browser</span></div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">🛠️ Core Technology Stack</div>
+                <div class="card-subtitle">The software stack powering the AI logic and web interface</div>
+                <div class="tech-list" style="margin-top:20px;">
+                    <div class="tech-chip"><span class="tech-icon">🐍</span> Python 3.10</div>
+                    <div class="tech-chip"><span class="tech-icon">🧠</span> XGBoost</div>
+                    <div class="tech-chip"><span class="tech-icon">📈</span> MLflow</div>
+                    <div class="tech-chip"><span class="tech-icon">⚡</span> FastAPI</div>
+                    <div class="tech-chip"><span class="tech-icon">🎨</span> Gradio</div>
+                    <div class="tech-chip"><span class="tech-icon">🐳</span> Docker</div>
+                    <div class="tech-chip"><span class="tech-icon">☸️</span> Kubernetes</div>
+                    <div class="tech-chip"><span class="tech-icon">📦</span> scikit-learn</div>
+                    <div class="tech-chip"><span class="tech-icon">🔢</span> Pandas</div>
+                    <div class="tech-chip"><span class="tech-icon">🦄</span> Uvicorn</div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ============================================== -->
+        <!-- PAGE 4: HISTORY                                -->
+        <!-- ============================================== -->
+        <div id="page-history" class="page">
+            <div class="glass-card history-section" id="history-section" style="min-height: 400px;">
+                <div class="card-title">📜 Prediction History</div>
+                <div class="card-subtitle">Complete log of node analysis results from this session</div>
+                
+                <div id="history-empty" style="text-align:center; padding: 60px 20px; color: var(--text-muted);">
+                    <div style="font-size: 3rem; margin-bottom: 12px; opacity: 0.5;">📭</div>
+                    No node predictions have been made yet in this session.<br>Go to the <strong>Predict</strong> tab to analyze a node.
+                </div>
+
+                <div class="history-table-wrapper" id="history-wrapper" style="display:none;">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>CPU Cores</th>
+                                <th>CPU %</th>
+                                <th>Memory MB</th>
+                                <th>Memory %</th>
+                                <th>Status</th>
+                                <th>Schedule?</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER (Shared) -->
+        <footer class="footer">
+            <p>AI K8s Pod Scheduler • Built with Python, XGBoost, FastAPI, Docker &amp; Kubernetes</p>
+            <p style="margin-top:6px;">Interactive Production Dashboard</p>
+        </footer>
+    </div>
+
+    <script>
+        // ===== SPA NAVIGATION =====
+        function switchPage(pageId, navElement) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            // Show target page
+            document.getElementById(pageId).classList.add('active');
+            
+            // Update active nav link
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            navElement.classList.add('active');
+
+            // Trigger animations based on page
+            if (pageId === 'page-analytics') {
+                setTimeout(() => {
+                    document.getElementById('bar-low').style.width = '54.7%';
+                    document.getElementById('bar-high').style.width = '45.3%';
+                }, 200);
+            }
+        }
+
+        // ===== SLIDER/NUMBER SYNC =====
+        function syncSlider(slider, numId, lblId) {
+            document.getElementById(numId).value = slider.value;
+            document.getElementById(lblId).textContent = slider.value;
+        }
+        function syncNumber(numInput, sliderId, lblId) {
+            document.getElementById(sliderId).value = numInput.value;
+            document.getElementById(lblId).textContent = numInput.value;
+        }
+
+        // ===== ANIMATED COUNTERS =====
+        function animateCounter(el, target, suffix = '', duration = 1500) {
+            let start = 0;
+            const isPercent = suffix === '%';
+            const step = (timestamp) => {
+                if (!start) start = timestamp;
+                const progress = Math.min((timestamp - start) / duration, 1);
+                const value = Math.floor(progress * target);
+                if (el) el.textContent = value.toLocaleString() + suffix;
+                if (progress < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+        }
+
+        // ===== ON LOAD ANIMATIONS =====
+        window.addEventListener('DOMContentLoaded', () => {
+            const elSamples = document.getElementById('stat-samples');
+            const elAccuracy = document.getElementById('stat-accuracy');
+            
+            if (elSamples) animateCounter(elSamples, 1053, '', 1200);
+            if (elAccuracy) animateCounter(elAccuracy, 99, '%', 1500); // Now 99%
+        });
+
+        // ===== PREDICTION HISTORY =====
+        let historyLog = [];
+        let historyCount = 0;
+
+        // ===== RUN PREDICTION =====
+        async function runPrediction() {
+            const btn = document.getElementById('predict-btn');
+            const btnText = document.getElementById('btn-text');
+            btn.classList.add('loading');
+            btnText.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+            const payload = {
+                cpu_cores: parseFloat(document.getElementById('num-cpu-cores').value),
+                cpu_percent: parseFloat(document.getElementById('num-cpu-pct').value),
+                memory_mb: parseFloat(document.getElementById('num-mem-mb').value),
+                memory_percent: parseFloat(document.getElementById('num-mem-pct').value)
+            };
+
+            try {
+                const res = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                displayResult(data, payload);
+            } catch (err) {
+                alert('Prediction failed: ' + err.message);
+            } finally {
+                btn.classList.remove('loading');
+                btnText.innerHTML = '🚀 Analyze Node & Predict Load';
+            }
+        }
+
+        function displayResult(data, input) {
+            document.getElementById('result-placeholder').style.display = 'none';
+            const display = document.getElementById('result-display');
+            display.classList.remove('active');
+            void display.offsetWidth; // trigger reflow
+            display.classList.add('active');
+
+            const isLow = data.node_status === 'LOW_LOAD';
+            const iconWrap = document.getElementById('result-icon-wrap');
+            iconWrap.className = 'result-icon-wrapper ' + (isLow ? 'low' : 'high');
+            document.getElementById('result-emoji').textContent = isLow ? '✅' : '🔴';
+
+            const title = document.getElementById('result-title');
+            title.textContent = isLow ? 'LOW LOAD — Node Available' : 'HIGH LOAD — Node Busy';
+            title.className = isLow ? 'low' : 'high';
+            document.getElementById('result-subtitle').textContent = isLow
+                ? 'This node has sufficient capacity for new pods'
+                : 'This node is under heavy load, avoid scheduling';
+
+            // Detail chips
+            const details = document.getElementById('result-details');
+            details.innerHTML = `
+                <div class="detail-chip"><div class="chip-label">CPU Cores</div><div class="chip-value">${input.cpu_cores}m</div></div>
+                <div class="detail-chip"><div class="chip-label">CPU Usage</div><div class="chip-value">${input.cpu_percent}%</div></div>
+                <div class="detail-chip"><div class="chip-label">Memory</div><div class="chip-value">${input.memory_mb} MB</div></div>
+                <div class="detail-chip"><div class="chip-label">Mem Usage</div><div class="chip-value">${input.memory_percent}%</div></div>
+            `;
+
+            // Recommendation
+            const rec = document.getElementById('schedule-rec');
+            rec.className = 'schedule-recommendation ' + (isLow ? 'yes' : 'no');
+            document.getElementById('rec-icon').textContent = isLow ? '🟢' : '🔴';
+            document.getElementById('rec-text').textContent = isLow
+                ? 'RECOMMENDATION: Schedule pods on this node'
+                : 'RECOMMENDATION: Do NOT schedule pods here';
+
+            // History
+            historyCount++;
+            historyLog.unshift({
+                id: historyCount,
+                ...input,
+                status: data.node_status,
+                schedule: data.schedule_here
+            });
+            renderHistory();
+        }
+
+        function renderHistory() {
+            document.getElementById('history-empty').style.display = 'none';
+            document.getElementById('history-wrapper').style.display = 'block';
+            
+            const tbody = document.getElementById('history-body');
+            tbody.innerHTML = historyLog.map(h => `
+                <tr>
+                    <td>${h.id}</td>
+                    <td>${h.cpu_cores}</td>
+                    <td>${h.cpu_percent}%</td>
+                    <td>${h.memory_mb}</td>
+                    <td>${h.memory_percent}%</td>
+                    <td><span class="status-badge ${h.status === 'LOW_LOAD' ? 'low-badge' : 'high-badge'}">${h.status === 'LOW_LOAD' ? '✅ LOW' : '❌ HIGH'}</span></td>
+                    <td style="color:${h.schedule ? 'var(--success)' : 'var(--danger)'}; font-weight:600;">${h.schedule ? 'Yes' : 'No'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ===== KEYBOARD SHORTCUT =====
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                // only predict if we are on the predict page
+                if (document.getElementById('page-predict').classList.contains('active')) {
+                    runPrediction();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

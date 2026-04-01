@@ -32,6 +32,9 @@ with mlflow.start_run():
     mlflow.log_metric("accuracy", acc)
     mlflow.xgboost.log_model(model, "xgboost_real_model")
 
+    import joblib
+    joblib.dump(model, "model.pkl")
+
     print(f"\nAccuracy: {acc}")
     print(f"\nReport:\n{classification_report(y_test, y_pred)}")
-    print("\nModel saved to MLflow!")
+    print("\nModel saved to MLflow and exported to model.pkl!")
