@@ -1,4 +1,4 @@
-# 🚀 AI K8s Pod Scheduler
+🚀 AI K8s Pod Scheduler
 
 ![Python](https://img.shields.io/badge/Python-3.10-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-00a393)
@@ -7,13 +7,13 @@
 
 An intelligent, machine-learning-powered Kubernetes Pod Scheduling Assistant. This project replaces simple threshold guessing with an **XGBoost Classifier** to accurately predict node load and recommend optimal pod placement.
 
-## 🌟 Overview
+🌟 Overview
 
 The default Kubernetes `kube-scheduler` makes placement decisions based on requested resources, but it often struggles to predict complex real-world load patterns. This AI Scheduler solves that by analyzing a dataset of **1,053 real-world K8s node metrics** (including noisy edge cases) to determine if a node is experiencing **HIGH LOAD** or **LOW LOAD**.
 
 With a hardened accuracy of **99.05%**, this system serves as a robust intelligent decision engine for dynamic pod scheduling.
 
-## ⚡ Key Features
+# ⚡ Key Features
 
 *   **🧠 XGBoost ML Engine:** Trained on thousands of realistic edge-case metrics (CPU Cores, CPU %, Memory MB, Memory %).
 *   **🖥️ Production SPA Dashboard:** A stunning, animated Single Page Application (SPA) with multi-page navigation built in pure HTML/CSS/JS (no heavy framework overhead).
