@@ -1,0 +1,6 @@
+﻿mlflow.db
+mlruns/
+__pycache__/
+auth/
+*.csv
+k8s_metrics.csv

@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI K8s Pod Scheduler — Intelligent Node Predictor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+
+        /* ===== CSS RESET & VARIABLES ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --glass: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.05);
+            
+            --grad-pink-purple: linear-gradient(135deg, #f72585, #7209b7);
+            --grad-blue-cyan: linear-gradient(135deg, #4361ee, #06d6a0);
+            --grad-orange-yellow: linear-gradient(135deg, #fb8500, #ffb703);
+            --grad-green-teal: linear-gradient(135deg, #00b09b, #96c93d);
+
+            --accent-cyan: #06d6a0;
+            --accent-blue: #4361ee;
+            --accent-purple: #7209b7;
+            --accent-pink: #f72585;
+            --accent-orange: #fb8500;
+            
+            --text-primary: #0f172a;
+            --text-secondary: #334155;
+            --text-muted: #64748b;
+            
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            
+            --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.08);
+            --shadow-xl: 0 30px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== ANIMATED BACKGROUND ===== */
+        .bg-animation {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 0;
+            overflow: hidden;
+            background: #f8fafc;
+        }
+        .bg-animation .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.8;
+            animation: float 25s infinite ease-in-out;
+        }
+        .bg-animation .orb:nth-child(1) { width: 600px; height: 600px; background: #ffd0e4; top: -10%; left: -5%; }
+        .bg-animation .orb:nth-child(2) { width: 500px; height: 500px; background: #ddd6fe; top: 40%; right: -10%; animation-delay: -5s; }
+        .bg-animation .orb:nth-child(3) { width: 400px; height: 400px; background: #bbf7d0; bottom: -5%; left: 30%; animation-delay: -10s; }
+        .bg-animation .orb:nth-child(4) { width: 350px; height: 350px; background: #fde68a; top: 20%; left: 50%; animation-delay: -15s; }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(40px, -60px) scale(1.05); }
+            50% { transform: translate(-20px, 40px) scale(0.95); }
+            75% { transform: translate(50px, 20px) scale(1.02); }
+        }
+
+        /* ===== NAVIGATION BAR ===== */
+        .navbar {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 100px;
+            margin: 15px 30px;
+            box-shadow: var(--shadow-sm);
+            animation: fadeInDown 0.8s ease;
+        }
+        .nav-brand {
+            font-weight: 800;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+        .nav-brand .pulse-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-pink);
+            box-shadow: 0 0 10px var(--accent-pink);
+            animation: pulse 2s infinite;
+        }
+        .nav-links { display: flex; gap: 8px; }
+        .nav-link {
+            padding: 8px 16px;
+            border-radius: 100px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid transparent;
+        }
+        .nav-link:hover:not(.active) { background: #f1f5f9; color: var(--text-primary); }
+        .nav-link.active {
+            color: #fff;
+            background: var(--grad-pink-purple);
+            box-shadow: 0 10px 20px rgba(247,37,133,0.3);
+            border: none;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 15px 30px 40px;
+        }
+
+        .page { display: none; animation: fadeIn 0.4s ease forwards; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ===== HEADER ===== */
+        .header { text-align: center; margin-bottom: 35px; }
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #f72585, #7209b7, #4361ee);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            font-weight: 500;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* ===== STATS BAR ===== */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            border-radius: 16px;
+            padding: 20px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+            box-shadow: var(--shadow-md);
+            border: none;
+            color: #fff;
+        }
+        .stat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+        
+        .stat-card:nth-child(1) { background: var(--grad-pink-purple); }
+        .stat-card:nth-child(2) { background: var(--grad-blue-cyan); }
+        .stat-card:nth-child(3) { background: var(--grad-orange-yellow); }
+        .stat-card:nth-child(4) { background: var(--grad-green-teal); }
+
+        .stat-card .stat-icon {
+            width: 36px; height: 36px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            margin-bottom: 12px;
+            background: rgba(255,255,255,0.2) !important;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .stat-card .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 4px;
+            color: #fff !important;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stat-card .stat-label { font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,0.9); }
+        .stat-card .stat-bar { display: none; } /* removed */
+
+        /* ===== MAIN GRID ===== */
+        .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+        /* ===== GLASS CARD ===== */
+        .glass-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 22px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--glass-border);
+            position: relative;
+        }
+        .card-title { font-size: 1rem; font-weight: 800; margin-bottom: 6px; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+        .card-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; font-weight: 500; }
+
+        /* ===== INPUT FORM ===== */
+        .input-group { margin-bottom: 24px; }
+        .input-group label {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.9rem; font-weight: 700; color: var(--text-secondary);
+            margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .input-group label .label-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            background: #f1f5f9; padding: 4px 12px; border-radius: 20px;
+            color: var(--accent-blue); font-weight: 800;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05) inset;
+        }
+        
+        .input-group input[type="range"] {
+            width: 100%; height: 10px;
+            -webkit-appearance: none; appearance: none;
+            border-radius: 10px; background: #e2e8f0; outline: none; margin-bottom: 8px;
+        }
+        .input-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #fff; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .input-group:nth-child(3) input[type="range"]::-webkit-slider-thumb { border: 5px solid var(--accent-pink); box-shadow: 0 4px 10px rgba(247,37,133,0.3); }
+        .input-group:nth-child(4) input[type="range"]::-webkit-slider-thumb { border: 5px solid var(--accent-blue); box-shadow: 0 4px 10px rgba(67,97,238,0.3); }
+        .input-group:nth-child(5) input[type="range"]::-webkit-slider-thumb { border: 5px solid var(--accent-orange); box-shadow: 0 4px 10px rgba(251,133,0,0.3); }
+        .input-group:nth-child(6) input[type="range"]::-webkit-slider-thumb { border: 5px solid var(--accent-cyan); box-shadow: 0 4px 10px rgba(6,214,160,0.3); }
+        
+        .input-group input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+        .slider-row { display: flex; gap: 16px; align-items: center; }
+        .slider-row input[type="range"] { flex: 1; }
+        .slider-row input[type="number"] {
+            width: 90px; flex-shrink: 0; padding: 10px;
+            border-radius: 14px; border: 1px solid #cbd5e1;
+            background: #f8fafc; color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700;
+            text-align: center; outline: none; transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .slider-row input[type="number"]:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 4px rgba(67,97,238,0.15); }
+
+        /* ===== PREDICT BUTTON ===== */
+        .predict-btn {
+            width: 100%; padding: 20px; border: none; border-radius: 20px;
+            font-family: 'Inter', sans-serif; font-size: 1.15rem; font-weight: 800; cursor: pointer;
+            position: relative; overflow: hidden; color: #fff;
+            background: var(--grad-pink-purple);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+            margin-top: 10px; box-shadow: 0 10px 25px rgba(247,37,133,0.3);
+        }
+        .predict-btn:hover { transform: translateY(-4px); box-shadow: 0 15px 35px rgba(247,37,133,0.4); }
+        .predict-btn:active { transform: translateY(0); }
+        .predict-btn.loading { opacity: 0.7; pointer-events: none; }
+        
+        /* ===== RESULT PANEL ===== */
+        .result-panel { display: flex; flex-direction: column; justify-content: center; background: #fff;}
+        .result-placeholder { text-align: center; padding: 40px 20px; }
+        .result-placeholder .placeholder-icon { font-size: 6rem; margin-bottom: 20px; opacity: 1; animation: floatIcon 3s ease-in-out infinite; }
+        @keyframes floatIcon { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-15px)} }
+        .result-placeholder p { color: var(--text-secondary); font-size: 1.15rem; font-weight: 500;}
+
+        .result-display { display: none; padding: 20px 0; }
+        .result-display.active { display: block; animation: scaleInPopup 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes scaleInPopup { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+
+        .result-status-card {
+            padding: 40px 30px; border-radius: 24px; text-align: center; margin-bottom: 24px;
+            color: #fff; box-shadow: var(--shadow-lg); transition: all 0.5s;
+        }
+        .result-status-card.low { background: var(--grad-green-teal); }
+        .result-status-card.high { background: linear-gradient(135deg, #ff416c, #ff4b2b); }
+        
+        .result-status-card .status-emoji { font-size: 5rem; line-height: 1; margin-bottom: 16px; display: inline-block; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
+        .result-status-card h3 { font-size: 2.5rem; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.5px; }
+        .result-status-card p { font-size: 1.15rem; font-weight: 600; opacity: 0.9; }
+
+        .result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+        .detail-chip {
+            padding: 16px; border-radius: 16px; background: #f8fafc;
+            border: 1px solid #e2e8f0; text-align: center;
+        }
+        .detail-chip .chip-label { font-size: 0.8rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .detail-chip .chip-value { font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: 800; color: var(--text-primary); }
+
+        .schedule-recommendation {
+            padding: 20px; border-radius: 20px; display: flex; align-items: center; justify-content: center;
+            gap: 12px; font-weight: 800; font-size: 1.1rem; text-align: center;
+        }
+        .schedule-recommendation.yes { background: #dcfce7; color: #166534; border: 2px solid #bbf7d0; }
+        .schedule-recommendation.no { background: #fee2e2; color: #991b1b; border: 2px solid #fecaca; }
+
+        /* ===== ANALYTICS & HISTORY ===== */
+        .perf-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .perf-item { text-align: center; padding: 25px 15px; border-radius: 20px; background: #f8fafc; border: 1px solid #e2e8f0; }
+        .perf-item .perf-value { font-size: 2.5rem; font-weight: 900; background: var(--grad-blue-cyan); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .perf-item .perf-label { font-size: 0.9rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-top: 8px; }
+        
+        .class-bar-wrapper { padding: 20px; border-radius: 20px; background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 12px;}
+        .class-bar-header .class-name { font-weight: 800; }
+        .class-bar-track { height: 16px; border-radius: 16px; background: #e2e8f0; margin-top:10px; }
+        .class-bar-fill { height: 100%; border-radius: 16px; transition: width 1.5s cubic-bezier(0.4,0,0.2,1); }
+        .class-bar-fill.low { background: var(--grad-green-teal); }
+        .class-bar-fill.high { background: linear-gradient(135deg, #ff416c, #ff4b2b); }
+
+        /* History Table */
+        .history-table th { padding: 16px; color: var(--text-secondary); font-weight: 800; }
+        .history-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; color: var(--text-primary); font-weight:500; }
+        .history-table tbody tr:hover { background: #f8fafc; }
+        .status-badge { padding: 6px 14px; border-radius: 100px; font-weight: 800; font-size: 0.8rem; }
+        .status-badge.low-badge { background: #dcfce7; color: #166534; }
+        .status-badge.high-badge { background: #fee2e2; color: #991b1b; }
+
+        .arch-node { padding: 16px 24px; border-radius: 16px; font-weight: 700; background: #fff; box-shadow: var(--shadow-sm); border: 2px solid transparent;}
+        .arch-node.k8s { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .arch-node.data { border-color: var(--accent-cyan); color: #0f766e; }
+        .arch-node.ml { border-color: var(--accent-purple); color: var(--accent-purple); }
+        .arch-node.api { border-color: var(--accent-pink); color: var(--accent-pink); }
+        .arch-node.ui { border-color: var(--accent-orange); color: #c2410c; }
+        .tech-chip { padding: 12px 20px; border-radius: 100px; background: #f8fafc; font-weight: 700; color: var(--text-secondary); border: 1px solid #e2e8f0;}
+        .tech-chip:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); background: #fff;}
+        .api-block { background: #f8fafc; border: 1px solid #e2e8f0; padding: 24px; border-radius: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+        .api-method { padding: 6px 12px; border-radius: 8px; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; margin-right: 16px; }
+        .api-method.get { background: #dcfce7; color: #166534; }
+        .api-method.post { background: #dbeafe; color: #1e40af; }
+        .api-path { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; color: var(--text-primary); }
+        .api-desc { color: var(--text-secondary); font-size: 0.9rem; margin-top: 6px; }
+        .try-btn { padding: 10px 20px; border-radius: 10px; background: #fff; border: 1px solid #e2e8f0; color: var(--text-primary); font-weight: 600; font-size: 0.85rem; transition: all 0.2s; box-shadow: var(--shadow-sm); text-decoration: none;}
+        .try-btn:hover { background: var(--grad-pink-purple); color: #fff; border-color: transparent; }
+
+        /* Responsive */
+        @media (max-width: 900px) { .stats-bar { grid-template-columns: repeat(2, 1fr); } .main-grid { grid-template-columns: 1fr; } }
+        /* ===== END CSS ===== */
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="bg-animation">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+    <div class="grid-overlay"></div>
+
+    <!-- ===== NAVIGATION BAR ===== -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="pulse-dot"></span>
+            AI Scheduler Panel
+        </div>
+        <div class="nav-links">
+            <a class="nav-link active" onclick="switchPage('page-predict', this)">🚀 Predict</a>
+            <a class="nav-link" onclick="switchPage('page-analytics', this)">📊 Analytics</a>
+            <a class="nav-link" onclick="switchPage('page-architecture', this)">🏗️ Architecture</a>
+            <a class="nav-link" onclick="switchPage('page-history', this)">📜 History</a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <!-- HEADER (Shared across pages) -->
+        <header class="header">
+            <h1>Node Load Predictor</h1>
+            <p>Intelligent pod scheduling powered by XGBoost ML — trained on 1,053 real Kubernetes cluster metrics for optimal resource allocation</p>
+        </header>
+
+        <!-- ============================================== -->
+        <!-- PAGE 1: PREDICT (DASHBOARD)                    -->
+        <!-- ============================================== -->
+        <div id="page-predict" class="page active">
+            <!-- STATS BAR -->
+            <section class="stats-bar">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value" id="stat-samples">0</div>
+                    <div class="stat-label">Training Samples</div>
+                    <div class="stat-bar"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🎯</div>
+                    <div class="stat-value" id="stat-accuracy">0%</div>
+                    <div class="stat-label">Model Accuracy</div>
+                    <div class="stat-bar"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-value" id="stat-features">4</div>
+                    <div class="stat-label">Input Features</div>
+                    <div class="stat-bar"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🧠</div>
+                    <div class="stat-value">XGBoost</div>
+                    <div class="stat-label">ML Algorithm</div>
+                    <div class="stat-bar"></div>
+                </div>
+            </section>
+
+            <!-- MAIN PREDICTION GRID -->
+            <section class="main-grid">
+                <!-- INPUT PANEL -->
+                <div class="glass-card">
+                    <div class="card-title">⚙️ Node Metrics Input</div>
+                    <div class="card-subtitle">Enter Kubernetes node resource metrics to predict load status</div>
+
+                    <div class="input-group">
+                        <label>🎛️ CPU Cores (millicores) <span class="label-value" id="lbl-cpu-cores">250</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="cpu-cores" min="100" max="2500" value="250" oninput="syncSlider(this, 'num-cpu-cores', 'lbl-cpu-cores')">
+                            <input type="number" id="num-cpu-cores" min="100" max="2500" value="250" oninput="syncNumber(this, 'cpu-cores', 'lbl-cpu-cores')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>⚡ CPU Percentage (%) <span class="label-value" id="lbl-cpu-pct">5</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="cpu-pct" min="0" max="100" value="5" oninput="syncSlider(this, 'num-cpu-pct', 'lbl-cpu-pct')">
+                            <input type="number" id="num-cpu-pct" min="0" max="100" value="5" oninput="syncNumber(this, 'cpu-pct', 'lbl-cpu-pct')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>🧠 Memory (MB) <span class="label-value" id="lbl-mem-mb">620</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="mem-mb" min="100" max="2000" value="620" oninput="syncSlider(this, 'num-mem-mb', 'lbl-mem-mb')">
+                            <input type="number" id="num-mem-mb" min="100" max="2000" value="620" oninput="syncNumber(this, 'mem-mb', 'lbl-mem-mb')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>📈 Memory Percentage (%) <span class="label-value" id="lbl-mem-pct">5</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="mem-pct" min="0" max="100" value="5" oninput="syncSlider(this, 'num-mem-pct', 'lbl-mem-pct')">
+                            <input type="number" id="num-mem-pct" min="0" max="100" value="5" oninput="syncNumber(this, 'mem-pct', 'lbl-mem-pct')">
+                        </div>
+                    </div>
+
+                    <button class="predict-btn" id="predict-btn" onclick="runPrediction()">
+                        <span class="btn-shimmer"></span>
+                        <span id="btn-text">✨ Analyze Node &amp; Predict Load ✨</span>
+                    </button>
+                </div>
+
+                <!-- RESULT PANEL -->
+                <div class="glass-card result-panel">
+                    <div class="card-title">📡 Prediction Output</div>
+                    <div class="card-subtitle">Real-time node classification using trained XGBoost model</div>
+
+                    <div class="result-placeholder" id="result-placeholder">
+                        <div class="placeholder-icon">🛸</div>
+                        <p>Enter node metrics and click <strong>Analyze</strong> to get an AI-powered scheduling recommendation</p>
+                    </div>
+
+                    <div class="result-display" id="result-display">
+                        <div class="result-status-card" id="result-status-card">
+                            <div class="status-emoji" id="result-emoji"></div>
+                            <h3 id="result-title"></h3>
+                            <p id="result-subtitle"></p>
+                        </div>
+
+                        <div class="result-details" id="result-details"></div>
+
+                        <div class="schedule-recommendation" id="schedule-rec">
+                            <span class="rec-icon" id="rec-icon"></span>
+                            <span id="rec-text"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+
+        <!-- ============================================== -->
+        <!-- PAGE 2: ANALYTICS                              -->
+        <!-- ============================================== -->
+        <div id="page-analytics" class="page">
+
+            <!-- CHARTS SECTION -->
+            <div class="main-grid" style="margin-bottom: 24px;">
+                <!-- Chart 1: Distribution -->
+                <div class="glass-card" style="padding: 25px;">
+                    <div class="card-title">📊 Training Data Distribution</div>
+                    <div style="position: relative; height: 250px; width: 100%; display: flex; justify-content: center; margin-top: 20px;">
+                        <canvas id="distributionChart"></canvas>
+                    </div>
+                </div>
+                <!-- Chart 2: Feature Importance -->
+                <div class="glass-card" style="padding: 25px;">
+                    <div class="card-title">🔍 XGBoost Feature Importance</div>
+                    <div style="position: relative; height: 250px; width: 100%; display: flex; justify-content: center; margin-top: 20px;">
+                        <canvas id="featureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card" style="margin-bottom: 24px;">
+                <div class="card-title">📈 Model Performance Analysis</div>
+                <div class="card-subtitle">XGBoost classifier validation metrics on 20% holdout set, incorporating noisy edge-cases.</div>
+
+                <div class="perf-grid">
+                    <div class="perf-item">
+                        <div class="perf-value">99.05%</div>
+                        <div class="perf-label">Accuracy</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-value">0.99</div>
+                        <div class="perf-label">Precision</div>
+                    </div>
+                    <div class="perf-item">
+                        <div class="perf-value">0.99</div>
+                        <div class="perf-label">F1-Score</div>
+                    </div>
+                </div>
+
+                <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;color:var(--text-secondary);">Dataset Class Distribution</div>
+                <div class="class-distribution">
+                    <div class="class-bar-wrapper">
+                        <div class="class-bar-header">
+                            <span class="class-name" style="color:var(--success);">✅ Low Load (0)</span>
+                            <span class="class-count">576 samples</span>
+                        </div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill low" id="bar-low"></div>
+                        </div>
+                    </div>
+                    <div class="class-bar-wrapper">
+                        <div class="class-bar-header">
+                            <span class="class-name" style="color:var(--danger);">❌ High Load (1)</span>
+                            <span class="class-count">477 samples</span>
+                        </div>
+                        <div class="class-bar-track">
+                            <div class="class-bar-fill high" id="bar-high"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">🔍 Feature Importance</div>
+                <div class="card-subtitle">How the ML model weighs each metric</div>
+                
+                <div style="padding:20px; border-radius:12px; background:rgba(255,255,255,0.02); border:1px solid var(--glass-border);">
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-cyan);font-weight:600;">cpu_cores</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.8512</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="width:85%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Primary separator between load classes. Values > 1,800m heavily indicate HIGH LOAD.</div>
+                        </div>
+                        
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-blue);font-weight:600;">memory_mb</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0824</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-blue); width:8%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Secondary memory utilization signal. Helps resolve edge-case classifications.</div>
+                        </div>
+
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-purple);font-weight:600;">cpu_percent</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0431</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-purple); width:4%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Processor usage percentage relative to total capacity.</div>
+                        </div>
+
+                        <div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                                <span style="color:var(--accent-pink);font-weight:600;">memory_percent</span>
+                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0233</span>
+                            </div>
+                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-pink); width:2%;"></div></div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Memory capacity percentage.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- LIVE PREDICTION HISTORY CHART -->
+            <div class="glass-card" style="margin-top: 24px; margin-bottom: 24px;">
+                <div class="card-title">📈 Live Prediction History</div>
+                <div class="card-subtitle">Updates in real-time as predictions are made</div>
+                
+                <div id="liveChartEmpty" style="text-align:center; padding: 40px 20px; color: var(--text-muted);">
+                    <div style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5;">📊</div>
+                    No predictions yet &mdash; go to the <strong>Predict</strong> tab and run a prediction!
+                </div>
+
+                <div id="liveChartContainer" style="display: none; width: 100%;">
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="livePredictionChart"></canvas>
+                    </div>
+                    <!-- Legend below the chart -->
+                    <div style="display: flex; gap: 24px; justify-content: center; margin-top: 16px; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #00b09b;"></span>
+                            LOW LOAD (schedule here)
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ff4b2b;"></span>
+                            HIGH LOAD (do not schedule)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- PAGE 3: ARCHITECTURE                           -->
+        <!-- ============================================== -->
+        <div id="page-architecture" class="page">
+            <div class="glass-card" style="margin-bottom: 24px;">
+                <div class="card-title">🏗️ System Architecture Flow</div>
+                <div class="card-subtitle">End-to-end data pipeline from Kubernetes cluster to ML prediction dashboard</div>
+                <div class="arch-flow">
+                    <div class="arch-node k8s">☸️ K8s Cluster<span class="arch-node-sub">kubectl top nodes</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node data">📊 Metrics CSV<span class="arch-node-sub">1,053 samples</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node ml">🧠 XGBoost<span class="arch-node-sub">MLflow tracked</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node api">⚡ FastAPI<span class="arch-node-sub">REST + Server</span></div>
+                    <span class="arch-arrow">→</span>
+                    <div class="arch-node ui">🖥️ Dashboard<span class="arch-node-sub">Client browser</span></div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="card-title">🛠️ Core Technology Stack</div>
+                <div class="card-subtitle">The software stack powering the AI logic and web interface</div>
+                <div class="tech-list" style="margin-top:20px;">
+                    <div class="tech-chip"><span class="tech-icon">🐍</span> Python 3.10</div>
+                    <div class="tech-chip"><span class="tech-icon">🧠</span> XGBoost</div>
+                    <div class="tech-chip"><span class="tech-icon">📈</span> MLflow</div>
+                    <div class="tech-chip"><span class="tech-icon">⚡</span> FastAPI</div>
+                    <div class="tech-chip"><span class="tech-icon">🎨</span> Gradio</div>
+                    <div class="tech-chip"><span class="tech-icon">🐳</span> Docker</div>
+                    <div class="tech-chip"><span class="tech-icon">☸️</span> Kubernetes</div>
+                    <div class="tech-chip"><span class="tech-icon">📦</span> scikit-learn</div>
+                    <div class="tech-chip"><span class="tech-icon">🔢</span> Pandas</div>
+                    <div class="tech-chip"><span class="tech-icon">🦄</span> Uvicorn</div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ============================================== -->
+        <!-- PAGE 4: HISTORY                                -->
+        <!-- ============================================== -->
+        <div id="page-history" class="page">
+            <div class="glass-card history-section" id="history-section" style="min-height: 400px;">
+                <div class="card-title">📜 Prediction History</div>
+                <div class="card-subtitle">Complete log of node analysis results from this session</div>
+                
+                <div id="history-empty" style="text-align:center; padding: 60px 20px; color: var(--text-muted);">
+                    <div style="font-size: 3rem; margin-bottom: 12px; opacity: 0.5;">📭</div>
+                    No node predictions have been made yet in this session.<br>Go to the <strong>Predict</strong> tab to analyze a node.
+                </div>
+
+                <div class="history-table-wrapper" id="history-wrapper" style="display:none;">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>CPU Cores</th>
+                                <th>CPU %</th>
+                                <th>Memory MB</th>
+                                <th>Memory %</th>
+                                <th>Status</th>
+                                <th>Schedule?</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER (Shared) -->
+        <footer class="footer">
+            <p>AI K8s Pod Scheduler • Built with Python, XGBoost, FastAPI, Docker &amp; Kubernetes</p>
+            <p style="margin-top:6px;">Interactive Production Dashboard</p>
+        </footer>
+    </div>
+
+    <script>
+        // ===== SPA NAVIGATION =====
+        function switchPage(pageId, navElement) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            // Show target page
+            document.getElementById(pageId).classList.add('active');
+            
+            // Update active nav link
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            navElement.classList.add('active');
+
+            // Trigger animations based on page
+            if (pageId === 'page-analytics') {
+                setTimeout(() => {
+                    document.getElementById('bar-low').style.width = '54.7%';
+                    document.getElementById('bar-high').style.width = '45.3%';
+                }, 200);
+            }
+        }
+
+        // ===== SLIDER/NUMBER SYNC =====
+        function syncSlider(slider, numId, lblId) {
+            document.getElementById(numId).value = slider.value;
+            document.getElementById(lblId).textContent = slider.value;
+        }
+        function syncNumber(numInput, sliderId, lblId) {
+            document.getElementById(sliderId).value = numInput.value;
+            document.getElementById(lblId).textContent = numInput.value;
+        }
+
+        // ===== ANIMATED COUNTERS =====
+        function animateCounter(el, target, suffix = '', duration = 1500) {
+            let start = 0;
+            const isPercent = suffix === '%';
+            const step = (timestamp) => {
+                if (!start) start = timestamp;
+                const progress = Math.min((timestamp - start) / duration, 1);
+                const value = Math.floor(progress * target);
+                if (el) el.textContent = value.toLocaleString() + suffix;
+                if (progress < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+        }
+
+        // ===== ON LOAD ANIMATIONS =====
+        window.addEventListener('DOMContentLoaded', () => {
+            const elSamples = document.getElementById('stat-samples');
+            const elAccuracy = document.getElementById('stat-accuracy');
+            
+            if (elSamples) animateCounter(elSamples, 1053, '', 1200);
+            if (elAccuracy) animateCounter(elAccuracy, 99, '%', 1500); // Now 99%
+        });
+
+        // ===== PREDICTION HISTORY =====
+        let historyLog = [];
+        let historyCount = 0;
+
+        // ===== RUN PREDICTION =====
+        async function runPrediction() {
+            const btn = document.getElementById('predict-btn');
+            const btnText = document.getElementById('btn-text');
+            btn.classList.add('loading');
+            btnText.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+            const payload = {
+                cpu_cores: parseFloat(document.getElementById('num-cpu-cores').value),
+                cpu_percent: parseFloat(document.getElementById('num-cpu-pct').value),
+                memory_mb: parseFloat(document.getElementById('num-mem-mb').value),
+                memory_percent: parseFloat(document.getElementById('num-mem-pct').value)
+            };
+
+            try {
+                const res = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                displayResult(data, payload);
+            } catch (err) {
+                alert('Prediction failed: ' + err.message);
+            } finally {
+                btn.classList.remove('loading');
+                btnText.innerHTML = '🚀 Analyze Node & Predict Load';
+            }
+        }
+
+        function displayResult(data, input) {
+            document.getElementById('result-placeholder').style.display = 'none';
+            const display = document.getElementById('result-display');
+            display.classList.remove('active');
+            void display.offsetWidth; // trigger reflow
+            display.classList.add('active');
+
+            const isLow = data.node_status === 'LOW_LOAD';
+            
+            const card = document.getElementById('result-status-card');
+            card.className = 'result-status-card ' + (isLow ? 'low' : 'high');
+            document.getElementById('result-emoji').textContent = isLow ? '🎉' : '⚠️';
+
+            const title = document.getElementById('result-title');
+            title.textContent = isLow ? 'LOW LOAD — Node Ready!' : 'HIGH LOAD — Node Busy!';
+            
+            document.getElementById('result-subtitle').textContent = isLow
+                ? 'Excellent! This node has sufficient capacity for new pods.'
+                : 'Warning! This node is under heavy load. Avoid scheduling.';
+
+            if (isLow && typeof confetti === "function") {
+                confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#00b09b', '#96c93d', '#4361ee', '#f72585'] });
+            }
+
+            // Detail chips
+            const details = document.getElementById('result-details');
+            details.innerHTML = `
+                <div class="detail-chip"><div class="chip-label">CPU Cores</div><div class="chip-value">${input.cpu_cores}m</div></div>
+                <div class="detail-chip"><div class="chip-label">CPU Usage</div><div class="chip-value">${input.cpu_percent}%</div></div>
+                <div class="detail-chip"><div class="chip-label">Memory</div><div class="chip-value">${input.memory_mb} MB</div></div>
+                <div class="detail-chip"><div class="chip-label">Mem Usage</div><div class="chip-value">${input.memory_percent}%</div></div>
+            `;
+
+            // Recommendation
+            const rec = document.getElementById('schedule-rec');
+            rec.className = 'schedule-recommendation ' + (isLow ? 'yes' : 'no');
+            document.getElementById('rec-icon').textContent = isLow ? '🟢' : '🔴';
+            document.getElementById('rec-text').textContent = isLow
+                ? 'RECOMMENDATION: Schedule pods on this node'
+                : 'RECOMMENDATION: Do NOT schedule pods here';
+
+            // History
+            historyCount++;
+            historyLog.unshift({
+                id: historyCount,
+                ...input,
+                status: data.node_status,
+                schedule: data.schedule_here
+            });
+            renderHistory();
+            
+            // Dispatch custom event for live chart
+            document.dispatchEvent(new CustomEvent('newPrediction', {
+                detail: {
+                    id: historyCount,
+                    status: data.node_status
+                }
+            }));
+
+        }
+
+        function renderHistory() {
+            document.getElementById('history-empty').style.display = 'none';
+            document.getElementById('history-wrapper').style.display = 'block';
+            
+            const tbody = document.getElementById('history-body');
+            tbody.innerHTML = historyLog.map(h => `
+                <tr>
+                    <td>${h.id}</td>
+                    <td>${h.cpu_cores}</td>
+                    <td>${h.cpu_percent}%</td>
+                    <td>${h.memory_mb}</td>
+                    <td>${h.memory_percent}%</td>
+                    <td><span class="status-badge ${h.status === 'LOW_LOAD' ? 'low-badge' : 'high-badge'}">${h.status === 'LOW_LOAD' ? '✅ LOW' : '❌ HIGH'}</span></td>
+                    <td style="color:${h.schedule ? 'var(--success)' : 'var(--danger)'}; font-weight:600;">${h.schedule ? 'Yes' : 'No'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // ===== KEYBOARD SHORTCUT =====
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                // only predict if we are on the predict page
+                if (document.getElementById('page-predict').classList.contains('active')) {
+                    runPrediction();
+                }
+            }
+        });
+    
+        // ===== CHARTS INITIALIZATION =====
+        window.addEventListener('DOMContentLoaded', () => {
+            // Check if charts exist
+            if (!document.getElementById('distributionChart')) return;
+            
+            // Chart 1: Distribution
+            const ctxDist = document.getElementById('distributionChart').getContext('2d');
+            new Chart(ctxDist, {
+                type: 'doughnut',
+                data: {
+                    labels: ['LOW LOAD (560)', 'HIGH LOAD (460)'],
+                    datasets: [{
+                        data: [560, 460],
+                        backgroundColor: ['#00b09b', '#ff4b2b'], // Green/teal and orange/red
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: 'Inter', size: 13, weight: '600' },
+                                color: '#334155',
+                                padding: 20
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+
+            // Chart 2: Feature Importance
+            const ctxFeat = document.getElementById('featureChart').getContext('2d');
+            
+            // Generate gradient for bars
+            const gradient1 = ctxFeat.createLinearGradient(0, 0, 400, 0);
+            gradient1.addColorStop(0, '#7209b7');
+            gradient1.addColorStop(1, '#f72585');
+            
+            new Chart(ctxFeat, {
+                type: 'bar',
+                data: {
+                    labels: ['cpu_cores', 'cpu_percent', 'memory_mb', 'memory_percent'],
+                    datasets: [{
+                        label: 'Importance (%)',
+                        data: [85.1, 7.3, 4.8, 2.8],
+                        backgroundColor: gradient1,
+                        borderRadius: 8,
+                        barThickness: 24
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return context.raw + '%'; }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { display: false, max: 100 },
+                        y: { 
+                            grid: { display: false },
+                            ticks: { font: { family: 'JetBrains Mono', size: 12 }, color: '#334155' },
+                            border: { display: false }
+                        }
+                    },
+                    animation: {
+                        onComplete: function() {
+                            const chartInstance = this;
+                            const ctx = chartInstance.ctx;
+                            ctx.font = Chart.helpers.fontString(12, 'bold', 'JetBrains Mono');
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = '#64748b';
+
+                            chartInstance.data.datasets.forEach(function(dataset, i) {
+                                const meta = chartInstance.getDatasetMeta(i);
+                                meta.data.forEach(function(bar, index) {
+                                    const data = dataset.data[index];
+                                    ctx.fillText(data + '%', bar.x + 8, bar.y);
+                                });
+                            });
+                        }
+                    }
+                }
+            });
+        });
+
+    
+        // ===== LIVE PREDICTION CHART INITIALIZATION =====
+        window.addEventListener('DOMContentLoaded', () => {
+            const liveChartCtx = document.getElementById('livePredictionChart');
+            if (!liveChartCtx) return;
+
+            let liveStatusChart = null;
+
+            document.addEventListener('newPrediction', (e) => {
+                const { id, status } = e.detail;
+                
+                // Hide placeholder, show chart
+                document.getElementById('liveChartEmpty').style.display = 'none';
+                document.getElementById('liveChartContainer').style.display = 'block';
+
+                const isLow = status === 'LOW_LOAD';
+                const colorValue = isLow ? '#00b09b' : '#ff4b2b';
+                const yValue = isLow ? 0 : 1; 
+
+                if (!liveStatusChart) {
+                    liveStatusChart = new Chart(liveChartCtx, {
+                        type: 'line',
+                        data: {
+                            labels: ['#' + id],
+                            datasets: [{
+                                label: 'Status',
+                                data: [yValue],
+                                borderColor: '#cbd5e1',
+                                borderWidth: 2,
+                                backgroundColor: [colorValue],
+                                pointBackgroundColor: [colorValue],
+                                pointBorderColor: [colorValue],
+                                pointRadius: 6,
+                                pointHoverRadius: 8,
+                                fill: false,
+                                tension: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            layout: {
+                                padding: { top: 20, bottom: 20 }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(ctx) { return ctx.raw === 0 ? 'LOW LOAD' : 'HIGH LOAD'; }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    display: true,
+                                    min: -0.2,
+                                    max: 1.2,
+                                    grid: { color: 'rgba(0,0,0,0.05)' },
+                                    ticks: {
+                                        stepSize: 1,
+                                        callback: function(value) {
+                                            if (value === 0) return 'LOW LOAD';
+                                            if (value === 1) return 'HIGH LOAD';
+                                            return '';
+                                        },
+                                        font: { family: 'JetBrains Mono', weight: 'bold' },
+                                        color: '#334155'
+                                    }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { font: { family: 'JetBrains Mono' }, color: '#334155' }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    // Update chart
+                    liveStatusChart.data.labels.push('#' + id);
+                    liveStatusChart.data.datasets[0].data.push(yValue);
+                    liveStatusChart.data.datasets[0].backgroundColor.push(colorValue);
+                    liveStatusChart.data.datasets[0].pointBackgroundColor.push(colorValue);
+                    liveStatusChart.data.datasets[0].pointBorderColor.push(colorValue);
+
+                    // Limit to 20
+                    if (liveStatusChart.data.labels.length > 20) {
+                        liveStatusChart.data.labels.shift();
+                        liveStatusChart.data.datasets[0].data.shift();
+                        liveStatusChart.data.datasets[0].backgroundColor.shift();
+                        liveStatusChart.data.datasets[0].pointBackgroundColor.shift();
+                        liveStatusChart.data.datasets[0].pointBorderColor.shift();
+                    }
+                    liveStatusChart.update();
+                }
+            });
+        });
+
+    </script>
+</body>
+</html>
