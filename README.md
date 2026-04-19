@@ -5,20 +5,20 @@
 ![XGBoost](https://img.shields.io/badge/ML-XGBoost-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-An intelligent, machine-learning-powered Kubernetes Pod Scheduling Assistant. This project replaces simple threshold guessing with an **XGBoost Classifier** to accurately predict node load and recommend optimal pod placement.
+An intelligent, machine-learning-powered Kubernetes Pod Scheduling Assistant. This project replaces simple threshold guessing with an **XGBoost Classifier** to accurately predict node load and recommend optimal pod placement by evaluating both live node telemetry and incoming pod constraints.
 
 🌟 Overview
 
-The default Kubernetes `kube-scheduler` makes placement decisions based on requested resources, but it often struggles to predict complex real-world load patterns. This AI Scheduler solves that by analyzing a dataset of **1,053 real-world K8s node metrics** (including noisy edge cases) to determine if a node is experiencing **HIGH LOAD** or **LOW LOAD**.
+The default Kubernetes `kube-scheduler` makes placement decisions purely based on raw requested resources. This AI Scheduler goes a step further by evaluating the complex non-linear relationship between a Node's capacity and an incoming Pod's footprint. Trained on **10,000 synthesized K8s node state samples**, the AI Engine accurately predicts whether a specific Pod can safely reside on a Node without causing an overload.
 
-With a hardened accuracy of **99.05%**, this system serves as a robust intelligent decision engine for dynamic pod scheduling.
+With a highly validated accuracy of **~96%**, this system serves as a robust intelligent decision engine for dynamic pod scheduling.
 
 # ⚡ Key Features
 
-*   **🧠 XGBoost ML Engine:** Trained on thousands of realistic edge-case metrics (CPU Cores, CPU %, Memory MB, Memory %).
-*   **🖥️ Production SPA Dashboard:** A stunning, animated Single Page Application (SPA) with multi-page navigation built in pure HTML/CSS/JS (no heavy framework overhead).
-*   **📡 RESTful API Wrapper:** A FastAPI backend that safely exposes the ML model to Kubernetes components.
-*   **📈 Real-time Analytics:** View feature importance, class distribution, and a running history of predictions dynamically.
+*   **🧠 XGBoost ML Engine:** Trained on 10,000 realistic stress-tested metric profiles spanning 6 distinct variables.
+*   **🖥️ Production SPA Dashboard:** A stunning, animated Single Page Application (SPA) with multi-page navigation built dynamically to visualize pod requirements and node constraints.
+*   **📡 RESTful API Wrapper:** A FastAPI backend with standard Pydantic schema validation.
+*   **🩺 K8s Probes:** Integrated Liveness and Readiness Kubernetes probes via the `/health` endpoint.
 *   **🐳 Container Ready:** Fully configured `Dockerfile` and `k8s-scheduler.yaml` for instant cluster deployment.
 
 ---
@@ -26,19 +26,18 @@ With a hardened accuracy of **99.05%**, this system serves as a robust intellige
 ## 🏗️ System Architecture
 
 ```text
-☸️ K8s Cluster (kubectl top nodes)
-      ↓
-📊 Metrics CSV (1,053 samples)
-      ↓
-🧠 XGBoost Pipeline (MLflow tracked)
-      ↓
-⚡ FastAPI (REST API Server)
-      ↓
-🖥️ Dashboard (Interactive Client Browser)
+                                  Pod Constraints
+                                      (CPU/Mem)
+                                          ↓
+☸️ K8s Cluster (Node Metrics) → ⚡ FastAPI Webhook → 🖥️ Dashboard
+                                          ↓
+                              🧠 XGBoost Pipeline (MLflow)
+                                          ↓
+                             ✅ ❌ Scheduling Decision
 ```
 
 ### Technology Stack
-*   **Backend:** Python 3.10, FastAPI, Uvicorn
+*   **Backend:** Python 3.10, FastAPI, Uvicorn, pytest
 *   **Machine Learning:** XGBoost, scikit-learn, Pandas, Joblib, MLflow
 *   **Frontend:** HTML5, CSS3, JavaScript (Vanilla SPA)
 *   **Deployment:** Docker, Kubernetes
@@ -61,6 +60,7 @@ python -m venv auth
 ### 2. Install Dependencies
 ```powershell
 pip install -r requirements.txt
+pip install pytest httpx
 ```
 
 ### 3. Start the Server
@@ -82,17 +82,19 @@ The system exposes programmatic REST APIs for Kubernetes to interact with:
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/predict` | Submit JSON node metrics (CPU/Mem) to receive a scheduling recommendation. |
-| `GET` | `/stats` | Returns underlying training dataset statistics. |
+| `POST` | `/predict` | Submit Node telemetry and incoming Pod constraints to receive a prediction. |
+| `GET` | `/stats` | Returns underlying ML training dataset statistics. |
 | `GET` | `/health` | Kubernetes Liveness & Readiness probe check. |
 
 **Example `POST /predict` Request:**
 ```json
 {
-  "cpu_cores": 250,
-  "cpu_percent": 5.0,
-  "memory_mb": 620,
-  "memory_percent": 5.0
+  "node_cpu_cores": 2250.0,
+  "node_cpu_percent": 50.0,
+  "node_memory_mb": 620.0,
+  "node_memory_percent": 10.0,
+  "pod_req_cpu": 500.0,
+  "pod_req_mem": 256.0
 }
 ```
 
@@ -101,7 +103,14 @@ The system exposes programmatic REST APIs for Kubernetes to interact with:
 {
   "node_status": "LOW_LOAD",
   "schedule_here": true,
-  "message": "✅ CLASS 0: LOW LOAD. Recommended for Pod Scheduling."
+  "features_received": {
+    "node_cpu_cores": 2250.0,
+    "node_cpu_percent": 50.0,
+    "node_memory_mb": 620.0,
+    "node_memory_percent": 10.0,
+    "pod_req_cpu": 500.0,
+    "pod_req_mem": 256.0
+  }
 }
 ```
 
@@ -110,9 +119,9 @@ The system exposes programmatic REST APIs for Kubernetes to interact with:
 ## 📊 Model Performance
 
 *   **Algorithm:** XGBoost Classifier
-*   **Dataset:** 1,053 Node Samples
-*   **Accuracy:** 99.05%
-*   **Top Feature Weight:** `cpu_cores` (85.1%)
+*   **Dataset Size:** 10,000 synthesized samples
+*   **Validation Accuracy:** ~96.2%
+*   **Target:** Binary Classification (1 = Schedulable, 0 = Do Not Schedule)
 
 ## 👨‍💻 Author
 **Anshika** (Project Lead & Developer)

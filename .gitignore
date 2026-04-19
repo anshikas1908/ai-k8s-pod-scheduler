@@ -1,2 +1,23 @@
-scratch/
+# Python caches
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# MLFlow & Models
+mlruns/
+model.pkl
+*.csv
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+mlflow.db

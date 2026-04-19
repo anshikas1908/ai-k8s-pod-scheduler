@@ -13,30 +13,33 @@ PORT = int(os.environ.get("APP_PORT", 7860))
 model = joblib.load(MODEL_PATH)
 import pandas as pd
 
-# Takes real metrics of a Kubernetes node: cpu_cores, cpu_percent, memory_mb, memory_percent
-# Returns whether the node is High Load or Low Load based on 1022 real samples!
-def predict(cpu_cores, cpu_percent, memory_mb, memory_percent):
+# Takes 6 real metrics including Pod constraints
+def predict(node_cpu_cores, node_cpu_percent, node_memory_mb, node_memory_percent, pod_req_cpu, pod_req_mem):
     # XGBoost trained on a DataFrame expects a DataFrame back to ensure features map flawlessly!
-    input_data = pd.DataFrame([[cpu_cores, cpu_percent, memory_mb, memory_percent]], 
-                             columns=['cpu_cores', 'cpu_percent', 'memory_mb', 'memory_percent'])
+    input_data = pd.DataFrame(
+        [[node_cpu_cores, node_cpu_percent, node_memory_mb, node_memory_percent, pod_req_cpu, pod_req_mem]], 
+        columns=['node_cpu_cores', 'node_cpu_percent', 'node_memory_mb', 'node_memory_percent', 'pod_req_cpu', 'pod_req_mem']
+    )
     
     pred = model.predict(input_data)
-    if pred[0] == 1:
-        return "❌ CLASS 1: HIGH LOAD. Do not schedule."
+    if pred[0] == 0:
+        return "❌ CLASS 0: HIGH LOAD. Node overloaded or Pod too large. Do not schedule."
     else:
-        return "✅ CLASS 0: LOW LOAD. Recommended for Pod Scheduling."
+        return "✅ CLASS 1: LOW LOAD. Excellent fit. Recommended for Pod Scheduling."
 
 iface = gr.Interface(
     fn=predict,
     inputs=[
-        gr.Number(label="CPU Cores (e.g., 250)"), 
-        gr.Number(label="CPU Percentage (e.g., 15)"),
-        gr.Number(label="Memory MB (e.g., 512)"),
-        gr.Number(label="Memory Percentage (e.g., 40)")
+        gr.Number(label="Node CPU Cores (e.g., 250)"), 
+        gr.Number(label="Node CPU Percentage (e.g., 15)"),
+        gr.Number(label="Node Memory MB (e.g., 512)"),
+        gr.Number(label="Node Memory Percentage (e.g., 40)"),
+        gr.Number(label="Pod Required CPU (e.g., 100)"),
+        gr.Number(label="Pod Required Memory MB (e.g., 256)"),
     ],
     outputs="text",
     title="AI K8s Pod Scheduler - Node Predictor",
-    description="🤖 AI Scheduler Interface – Trained on 1,022 real Kubernetes Node Metrics!"
+    description="🤖 AI Scheduler Engine – Trained on variable realistic cluster data!"
 )
 
 if __name__ == "__main__":

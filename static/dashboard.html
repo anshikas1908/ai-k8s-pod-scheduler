@@ -347,14 +347,20 @@
         .status-badge.low-badge { background: #dcfce7; color: #166534; }
         .status-badge.high-badge { background: #fee2e2; color: #991b1b; }
 
-        .arch-node { padding: 16px 24px; border-radius: 16px; font-weight: 700; background: #fff; box-shadow: var(--shadow-sm); border: 2px solid transparent;}
+        .arch-flow { display: flex; align-items: center; justify-content: space-between; overflow-x: auto; padding-bottom: 10px; margin-top: 20px; }
+        .arch-node { padding: 16px 24px; border-radius: 16px; font-weight: 700; background: #fff; box-shadow: var(--shadow-sm); border: 2px solid transparent; text-align: center; flex-shrink: 0; min-width: 140px; }
+        .arch-node-sub { display: block; font-size: 0.8rem; font-weight: 500; margin-top: 4px; opacity: 0.8; }
+        .arch-arrow { font-size: 1.5rem; color: #cbd5e1; font-weight: 900; }
         .arch-node.k8s { border-color: var(--accent-blue); color: var(--accent-blue); }
         .arch-node.data { border-color: var(--accent-cyan); color: #0f766e; }
         .arch-node.ml { border-color: var(--accent-purple); color: var(--accent-purple); }
         .arch-node.api { border-color: var(--accent-pink); color: var(--accent-pink); }
         .arch-node.ui { border-color: var(--accent-orange); color: #c2410c; }
-        .tech-chip { padding: 12px 20px; border-radius: 100px; background: #f8fafc; font-weight: 700; color: var(--text-secondary); border: 1px solid #e2e8f0;}
+        
+        .tech-list { display: flex; flex-wrap: wrap; gap: 12px; }
+        .tech-chip { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 100px; background: #f8fafc; font-weight: 700; color: var(--text-secondary); border: 1px solid #e2e8f0; transition: all 0.2s;}
         .tech-chip:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); background: #fff;}
+        .tech-icon { font-size: 1.1rem; }
         .api-block { background: #f8fafc; border: 1px solid #e2e8f0; padding: 24px; border-radius: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
         .api-method { padding: 6px 12px; border-radius: 8px; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; margin-right: 16px; }
         .api-method.get { background: #dcfce7; color: #166534; }
@@ -399,7 +405,7 @@
         <!-- HEADER (Shared across pages) -->
         <header class="header">
             <h1>Node Load Predictor</h1>
-            <p>Intelligent pod scheduling powered by XGBoost ML — trained on 1,053 real Kubernetes cluster metrics for optimal resource allocation</p>
+            <p>Intelligent pod scheduling powered by XGBoost ML — trained on 10,000 synthesized K8s node state samples for optimal resource allocation</p>
         </header>
 
         <!-- ============================================== -->
@@ -422,7 +428,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">⚡</div>
-                    <div class="stat-value" id="stat-features">4</div>
+                    <div class="stat-value" id="stat-features">6</div>
                     <div class="stat-label">Input Features</div>
                     <div class="stat-bar"></div>
                 </div>
@@ -466,10 +472,29 @@
                     </div>
 
                     <div class="input-group">
-                        <label>📈 Memory Percentage (%) <span class="label-value" id="lbl-mem-pct">5</span></label>
+                        <label>📈 Node Memory Percentage (%) <span class="label-value" id="lbl-mem-pct">5</span></label>
                         <div class="slider-row">
                             <input type="range" id="mem-pct" min="0" max="100" value="5" oninput="syncSlider(this, 'num-mem-pct', 'lbl-mem-pct')">
                             <input type="number" id="num-mem-pct" min="0" max="100" value="5" oninput="syncNumber(this, 'mem-pct', 'lbl-mem-pct')">
+                        </div>
+                    </div>
+
+                    <div style="border-top:1px solid var(--glass-border); margin:20px 0;"></div>
+                    <div class="card-title">📦 Pod Requirements Input</div>
+
+                    <div class="input-group">
+                        <label>🎛️ Required Pod CPU (millicores) <span class="label-value" id="lbl-pod-cpu">500</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="pod-cpu" min="50" max="2500" value="500" oninput="syncSlider(this, 'num-pod-cpu', 'lbl-pod-cpu')">
+                            <input type="number" id="num-pod-cpu" min="50" max="2500" value="500" oninput="syncNumber(this, 'pod-cpu', 'lbl-pod-cpu')">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>🧠 Required Pod Memory (MB) <span class="label-value" id="lbl-pod-mem">512</span></label>
+                        <div class="slider-row">
+                            <input type="range" id="pod-mem" min="64" max="4096" value="512" oninput="syncSlider(this, 'num-pod-mem', 'lbl-pod-mem')">
+                            <input type="number" id="num-pod-mem" min="64" max="4096" value="512" oninput="syncNumber(this, 'pod-mem', 'lbl-pod-mem')">
                         </div>
                     </div>
 
@@ -555,69 +580,26 @@
                 <div class="class-distribution">
                     <div class="class-bar-wrapper">
                         <div class="class-bar-header">
-                            <span class="class-name" style="color:var(--success);">✅ Low Load (0)</span>
-                            <span class="class-count">576 samples</span>
+                            <span class="class-name" style="color:var(--success);">✅ LOW LOAD / SCHEDULABLE (1)</span>
+                            <span class="class-count">3,197 samples</span>
                         </div>
                         <div class="class-bar-track">
-                            <div class="class-bar-fill low" id="bar-low"></div>
+                            <div class="class-bar-fill low" id="bar-low" style="width: 32%"></div>
                         </div>
                     </div>
                     <div class="class-bar-wrapper">
                         <div class="class-bar-header">
-                            <span class="class-name" style="color:var(--danger);">❌ High Load (1)</span>
-                            <span class="class-count">477 samples</span>
+                            <span class="class-name" style="color:var(--danger);">❌ HIGH LOAD / NO FIT (0)</span>
+                            <span class="class-count">6,803 samples</span>
                         </div>
                         <div class="class-bar-track">
-                            <div class="class-bar-fill high" id="bar-high"></div>
+                            <div class="class-bar-fill high" id="bar-high" style="width: 68%"></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="glass-card">
-                <div class="card-title">🔍 Feature Importance</div>
-                <div class="card-subtitle">How the ML model weighs each metric</div>
-                
-                <div style="padding:20px; border-radius:12px; background:rgba(255,255,255,0.02); border:1px solid var(--glass-border);">
-                    <div style="display: flex; flex-direction: column; gap: 16px;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                                <span style="color:var(--accent-cyan);font-weight:600;">cpu_cores</span>
-                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.8512</span>
-                            </div>
-                            <div class="class-bar-track"><div class="class-bar-fill low" style="width:85%;"></div></div>
-                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Primary separator between load classes. Values > 1,800m heavily indicate HIGH LOAD.</div>
-                        </div>
-                        
-                        <div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                                <span style="color:var(--accent-blue);font-weight:600;">memory_mb</span>
-                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0824</span>
-                            </div>
-                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-blue); width:8%;"></div></div>
-                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Secondary memory utilization signal. Helps resolve edge-case classifications.</div>
-                        </div>
 
-                        <div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                                <span style="color:var(--accent-purple);font-weight:600;">cpu_percent</span>
-                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0431</span>
-                            </div>
-                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-purple); width:4%;"></div></div>
-                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Processor usage percentage relative to total capacity.</div>
-                        </div>
-
-                        <div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                                <span style="color:var(--accent-pink);font-weight:600;">memory_percent</span>
-                                <span style="font-family:'JetBrains Mono',monospace;color:var(--text-muted);">0.0233</span>
-                            </div>
-                            <div class="class-bar-track"><div class="class-bar-fill low" style="background:var(--accent-pink); width:2%;"></div></div>
-                            <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:6px;">Memory capacity percentage.</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- LIVE PREDICTION HISTORY CHART -->
             <div class="glass-card" style="margin-top: 24px; margin-bottom: 24px;">
                 <div class="card-title">📈 Live Prediction History</div>
@@ -704,10 +686,10 @@
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>CPU Cores</th>
-                                <th>CPU %</th>
-                                <th>Memory MB</th>
-                                <th>Memory %</th>
+                                <th>Node CPU</th>
+                                <th>Pod CPU</th>
+                                <th>Node Mem</th>
+                                <th>Pod Mem</th>
                                 <th>Status</th>
                                 <th>Schedule?</th>
                             </tr>
@@ -779,8 +761,8 @@
             const elSamples = document.getElementById('stat-samples');
             const elAccuracy = document.getElementById('stat-accuracy');
             
-            if (elSamples) animateCounter(elSamples, 1053, '', 1200);
-            if (elAccuracy) animateCounter(elAccuracy, 99, '%', 1500); // Now 99%
+            if (elSamples) animateCounter(elSamples, 10000, '', 1200);
+            if (elAccuracy) animateCounter(elAccuracy, 96, '%', 1500); // 96% on 10k data
         });
 
         // ===== PREDICTION HISTORY =====
@@ -795,10 +777,12 @@
             btnText.innerHTML = '<span class="spinner"></span> Analyzing...';
 
             const payload = {
-                cpu_cores: parseFloat(document.getElementById('num-cpu-cores').value),
-                cpu_percent: parseFloat(document.getElementById('num-cpu-pct').value),
-                memory_mb: parseFloat(document.getElementById('num-mem-mb').value),
-                memory_percent: parseFloat(document.getElementById('num-mem-pct').value)
+                node_cpu_cores: parseFloat(document.getElementById('num-cpu-cores').value),
+                node_cpu_percent: parseFloat(document.getElementById('num-cpu-pct').value),
+                node_memory_mb: parseFloat(document.getElementById('num-mem-mb').value),
+                node_memory_percent: parseFloat(document.getElementById('num-mem-pct').value),
+                pod_req_cpu: parseFloat(document.getElementById('num-pod-cpu').value),
+                pod_req_mem: parseFloat(document.getElementById('num-pod-mem').value)
             };
 
             try {
@@ -844,10 +828,10 @@
             // Detail chips
             const details = document.getElementById('result-details');
             details.innerHTML = `
-                <div class="detail-chip"><div class="chip-label">CPU Cores</div><div class="chip-value">${input.cpu_cores}m</div></div>
-                <div class="detail-chip"><div class="chip-label">CPU Usage</div><div class="chip-value">${input.cpu_percent}%</div></div>
-                <div class="detail-chip"><div class="chip-label">Memory</div><div class="chip-value">${input.memory_mb} MB</div></div>
-                <div class="detail-chip"><div class="chip-label">Mem Usage</div><div class="chip-value">${input.memory_percent}%</div></div>
+                <div class="detail-chip"><div class="chip-label">Node CPU</div><div class="chip-value">${input.node_cpu_cores}m</div></div>
+                <div class="detail-chip"><div class="chip-label">Pod CPU Req</div><div class="chip-value">${input.pod_req_cpu}m</div></div>
+                <div class="detail-chip"><div class="chip-label">Node Mem</div><div class="chip-value">${input.node_memory_mb} MB</div></div>
+                <div class="detail-chip"><div class="chip-label">Pod Mem Req</div><div class="chip-value">${input.pod_req_mem} MB</div></div>
             `;
 
             // Recommendation
@@ -886,11 +870,11 @@
             tbody.innerHTML = historyLog.map(h => `
                 <tr>
                     <td>${h.id}</td>
-                    <td>${h.cpu_cores}</td>
-                    <td>${h.cpu_percent}%</td>
-                    <td>${h.memory_mb}</td>
-                    <td>${h.memory_percent}%</td>
-                    <td><span class="status-badge ${h.status === 'LOW_LOAD' ? 'low-badge' : 'high-badge'}">${h.status === 'LOW_LOAD' ? '✅ LOW' : '❌ HIGH'}</span></td>
+                    <td>${h.node_cpu_cores}</td>
+                    <td>${h.pod_req_cpu}</td>
+                    <td>${h.node_memory_mb}</td>
+                    <td>${h.pod_req_mem}</td>
+                    <td><span class="status-badge ${h.status === 'LOW_LOAD' ? 'low-badge' : 'high-badge'}">${h.status === 'LOW_LOAD' ? '✅ FIT' : '❌ NO FIT'}</span></td>
                     <td style="color:${h.schedule ? 'var(--success)' : 'var(--danger)'}; font-weight:600;">${h.schedule ? 'Yes' : 'No'}</td>
                 </tr>
             `).join('');
@@ -916,9 +900,9 @@
             new Chart(ctxDist, {
                 type: 'doughnut',
                 data: {
-                    labels: ['LOW LOAD (560)', 'HIGH LOAD (460)'],
+                    labels: ['SCHEDULABLE', 'NO FIT'],
                     datasets: [{
-                        data: [560, 460],
+                        data: [3197, 6803],
                         backgroundColor: ['#00b09b', '#ff4b2b'], // Green/teal and orange/red
                         borderWidth: 0,
                         hoverOffset: 4
@@ -952,13 +936,13 @@
             new Chart(ctxFeat, {
                 type: 'bar',
                 data: {
-                    labels: ['cpu_cores', 'cpu_percent', 'memory_mb', 'memory_percent'],
+                    labels: ['node_cpu_cores', 'pod_req_cpu', 'node_mem_mb', 'pod_req_mem', 'node_cpu_pct', 'node_mem_pct'],
                     datasets: [{
                         label: 'Importance (%)',
-                        data: [85.1, 7.3, 4.8, 2.8],
+                        data: [42.1, 38.5, 9.2, 7.1, 1.8, 1.3],
                         backgroundColor: gradient1,
                         borderRadius: 8,
-                        barThickness: 24
+                        barThickness: 20
                     }]
                 },
                 options: {
