@@ -123,5 +123,31 @@ The system exposes programmatic REST APIs for Kubernetes to interact with:
 *   **Validation Accuracy:** ~96.2%
 *   **Target:** Binary Classification (1 = Schedulable, 0 = Do Not Schedule)
 
+---
+
+## 🛡️ Risk Analysis & Mitigation
+
+To ensure project robustness and security, the following risks were analyzed and mitigated:
+
+1. **Risk:** Model Performance Drift (Accuracy decaying over time).
+   - **Mitigation:** The architecture supports MLflow tracking, allowing for periodic retraining on new telemetry data to maintain high accuracy.
+2. **Risk:** Invalid or Malicious Data Input.
+   - **Mitigation:** Used **Pydantic models** in FastAPI to strictly enforce data types. Any payload missing features (e.g., `pod_req_cpu`) is rejected with a `422 Unprocessable Entity` error before reaching the ML model.
+3. **Risk:** Service Unavailability / API Crash.
+   - **Mitigation:** Integrated **Kubernetes Health Probes** (Liveness & Readiness). If the container fails, K8s automatically restarts the pod and re-allocates traffic to healthy replicas.
+4. **Risk:** Resource Exhaustion.
+   - **Mitigation:** Defined **CPU and Memory Resource Quotas** in `k8s-scheduler.yaml` to ensure the scheduler doesn't starve other applications in the cluster.
+
+---
+
+## 🏎️ Optimization & Scalability
+
+This project implements professional-grade optimizations for speed and cost-efficiency:
+
+*   **Network Optimization:** Integrated `GzipMiddleware` in the FastAPI backend to compress JSON responses, reducing bandwidth usage by up to 70%.
+*   **Cost Optimization (Model Selection):** Chose **XGBoost** over Deep Learning (Neural Networks). For structured tabular data, XGBoost provides similar accuracy but consumes significantly less RAM/CPU, making it cheaper to run in production.
+*   **Infrastructure Scalability:** Fully containerized with **Docker**, allowing the application to scale horizontally (increase `replicas`) across a Kubernetes cluster during traffic spikes.
+*   **Response Speed:** The model is pre-loaded into memory at startup, allowing for sub-millisecond inference times.
+
 ## 👨‍💻 Author
 **Anshika** (Project Lead & Developer)
