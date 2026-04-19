@@ -7,10 +7,10 @@ import numpy as np
 import os
 import pandas as pd
 
-from fastapi.middleware.gzip import GzipMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 # Initialize our primary web server
 app = FastAPI(title='AI K8s Pod Scheduler - Real Metrics Edition')
-app.add_middleware(GzipMiddleware, minimum_size=1000)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "model.pkl")
 model = joblib.load(MODEL_PATH)
